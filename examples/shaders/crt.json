@@ -1,0 +1,10 @@
+{
+    "fps": 30,
+    "fg": "primary",
+    "bg": "surface",
+    "uniforms": {
+        "uScanline": 0.35,
+        "uSplit": 1.5,
+        "uTintMix": 0.25
+    }
+}
