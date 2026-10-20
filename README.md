@@ -31,14 +31,14 @@ inode instead. To pick up a rebuild, unload the plugin and load it again.
 ## Load
 
 ```sh
-hyprctl plugin load /home/kemononeco/Projects/hypr-shaders/hypr-shaders.so
-hyprctl plugin unload /home/kemononeco/Projects/hypr-shaders/hypr-shaders.so
+hyprctl plugin load /path/to/hypr-shaders/hypr-shaders.so
+hyprctl plugin unload /path/to/hypr-shaders/hypr-shaders.so
 ```
 
 To load it at startup, add this to the Lua config (`hyprland.lua`):
 
 ```lua
-hl.plugin.load("/home/kemononeco/Projects/hypr-shaders/hypr-shaders.so")
+hl.plugin.load("/path/to/hypr-shaders/hypr-shaders.so")
 ```
 
 Window rules that go with it:
@@ -189,3 +189,7 @@ and the window renders normally.
 - Windows that use window transformers (third-party plugins) render the backdrop from
   their offscreen pass rather than the main framebuffer.
 - OpenGL renderer only. The plugin refuses to load on the Vulkan renderer.
+
+## License
+
+BSD-3-Clause, see [LICENSE](LICENSE).
