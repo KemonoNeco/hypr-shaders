@@ -9,7 +9,9 @@
 
 #include <hyprland/src/Compositor.hpp>
 #include <hyprland/src/desktop/state/WindowState.hpp>
-#include <hyprland/src/desktop/view/Window.hpp>
+#include <hyprland/src/desktop/view/window/Window.hpp>
+#include <hyprland/src/desktop/view/window/WindowPresentation.hpp>
+#include <hyprland/src/render/Context.hpp>
 #include <hyprland/src/event/EventBus.hpp>
 #include <hyprland/src/output/Monitor.hpp>
 #include <hyprland/src/plugins/PluginAPI.hpp>
@@ -39,20 +41,20 @@ namespace {
         if (!w)
             return;
         bool hasWin = false, hasBg = false;
-        for (auto& d : w->m_windowDecorations) {
+        for (auto& d : w->presentation().decorations()) {
             const auto n = d->getDisplayName();
             hasWin       = hasWin || n == DECO_NAME_WINDOW;
             hasBg        = hasBg || n == DECO_NAME_BACKDROP;
         }
         if (!hasBg)
-            HyprlandAPI::addWindowDecoration(PHANDLE, w, makeUnique<CShaderDeco>(w, MODE_BACKDROP));
+            HyprlandAPI::addWindowDecoration(PHANDLE, w, makeShared<CShaderDeco>(w, MODE_BACKDROP));
         if (!hasWin)
-            HyprlandAPI::addWindowDecoration(PHANDLE, w, makeUnique<CShaderDeco>(w, MODE_WINDOW));
+            HyprlandAPI::addWindowDecoration(PHANDLE, w, makeShared<CShaderDeco>(w, MODE_WINDOW));
     }
 
     void damageAllTagged() {
         for (auto& w : Desktop::windowState()->windows()) {
-            if (!w->m_isMapped || w->isHidden())
+            if (!w->mapped() || w->isHidden())
                 continue;
             damageEffect(w, tagState(w));
         }
@@ -75,7 +77,7 @@ namespace {
             };
             std::vector<SReq> reqs;
             for (auto& w : Desktop::windowState()->windows()) {
-                if (!w->m_isMapped || w->isHidden())
+                if (!w->mapped() || w->isHidden())
                     continue;
                 const auto st = tagState(w);
                 if (!st.any() || !g_pHyprRenderer->shouldRenderWindow(w, mon))
@@ -129,7 +131,7 @@ namespace {
             }
 
             for (auto& w : Desktop::windowState()->windows()) {
-                if (!w->m_isMapped)
+                if (!w->mapped())
                     continue;
                 const auto st  = tagState(w);
                 auto&      ws  = g_windows[w.get()];
@@ -200,7 +202,7 @@ APICALL EXPORT PLUGIN_DESCRIPTION_INFO PLUGIN_INIT(HANDLE handle) {
     g_listeners.emplace_back(Event::bus()->m_events.render.pre.listen([](PHLMONITOR m) { onRenderPre(m); }));
 
     for (auto& w : Desktop::windowState()->windows()) {
-        if (!w->m_isMapped)
+        if (!w->mapped())
             continue;
         attach(w);
     }
@@ -220,7 +222,7 @@ APICALL EXPORT void PLUGIN_EXIT() {
     }
     g_listeners.clear();
 
-    g_pHyprRenderer->m_renderPass.removeAllOfType("CShaderPassElement");
+    g_pHyprRenderer->context().m_pass.removeAllOfType("CShaderPassElement");
 
     // repaint tagged windows without the effect
     damageAllTagged();

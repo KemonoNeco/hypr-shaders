@@ -6,6 +6,12 @@
 
 using namespace hs;
 
+Render::CRenderContext* hs::g_drawCtx = nullptr;
+
+Render::CRenderContext& hs::renderCtx() {
+    return g_drawCtx ? *g_drawCtx : g_pHyprRenderer->context();
+}
+
 const char* hs::QUAD_VERT = R"GLSL(#version 300 es
 precision highp float;
 layout(location = 0) in vec2 aPos;
@@ -211,7 +217,7 @@ void hs::destroyShared() {
 void hs::drawToScratch(CProgram& prog, SScratch& s, int w, int h) {
     glBindFramebuffer(GL_DRAW_FRAMEBUFFER, s.fbo);
     Render::GL::g_pHyprOpenGL->setViewport(0, 0, s.w, s.h);
-    Render::GL::g_pHyprOpenGL->scissor(nullptr);
+    Render::GL::g_pHyprOpenGL->scissor(renderCtx(), (const pixman_box32*)nullptr);
     g_pHyprRenderer->blend(false);
 
     prog.set4f("uRect", 0, 0, w, h);
@@ -248,6 +254,6 @@ SGLGuard::~SGLGuard() {
     glBindFramebuffer(GL_READ_FRAMEBUFFER, readFB);
     glBindFramebuffer(GL_DRAW_FRAMEBUFFER, drawFB);
     Render::GL::g_pHyprOpenGL->setViewport(viewport[0], viewport[1], viewport[2], viewport[3]);
-    Render::GL::g_pHyprOpenGL->scissor(nullptr);
+    Render::GL::g_pHyprOpenGL->scissor(renderCtx(), (const pixman_box32*)nullptr);
     g_pHyprRenderer->blend(true);
 }

@@ -28,6 +28,8 @@ namespace hs {
 
     // window box in render space (monitor-local, scaled px, logical orientation)
     CBox renderBox(PHLWINDOW w, PHLMONITOR mon);
+    // same, with the workspace/floating offsets of a render presentation
+    CBox renderBox(PHLWINDOW w, PHLMONITOR mon, const Vector2D& workspaceOffset, const Vector2D& floatingOffset);
     // render space <-> framebuffer space (differs only on rotated/flipped monitors)
     CBox toFB(const CBox& box, PHLMONITOR mon);
     CBox fromFB(const CBox& box, PHLMONITOR mon);
@@ -45,7 +47,7 @@ namespace hs {
 
         SDecorationPositioningInfo getPositioningInfo() override;
         void                       onPositioningReply(const SDecorationPositioningReply& reply) override;
-        void                       draw(PHLMONITOR, float const& a) override;
+        void                       draw(Render::CRenderContext& ctx, PHLMONITOR, float const& a, const Render::SWindowRenderPresentation& presentation) override;
         eDecorationType            getDecorationType() override;
         void                       updateWindow(PHLWINDOW) override;
         void                       damageEntire() override;
@@ -66,24 +68,25 @@ namespace hs {
             eMode        mode = MODE_WINDOW;
             std::string  effect;
             float        alpha = 1.F;
+            Vector2D     workspaceOffset, floatingOffset; // from the window's render presentation
         };
 
         CShaderPassElement(SData data) : m_data(std::move(data)) {}
         ~CShaderPassElement() override = default;
 
-        std::vector<UP<IPassElement>> draw() override;
-        bool                          needsLiveBlur() override {
+        std::vector<UP<IPassElement>> draw(Render::CRenderContext& ctx) override;
+        bool                          needsLiveBlur(Render::CRenderContext& ctx) override {
             return false;
         }
-        bool needsPrecomputeBlur() override {
+        bool needsPrecomputeBlur(Render::CRenderContext& ctx) override {
             return false;
         }
         // Our effect samples whole character cells / regions, so the stuff under the window
         // must be rendered even where an opaque window above would normally occlude it.
-        bool disableSimplification() override {
+        bool disableSimplification(Render::CRenderContext& ctx) override {
             return true;
         }
-        std::optional<CBox> boundingBox() override;
+        std::optional<CBox> boundingBox(Render::CRenderContext& ctx) override;
         const char*         passName() override {
             return "CShaderPassElement";
         }

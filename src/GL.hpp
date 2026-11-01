@@ -7,7 +7,16 @@
 #include <string>
 #include <unordered_map>
 
+namespace Render {
+    class CRenderContext;
+}
+
 namespace hs {
+
+    // Render context of the pass element currently drawing (set by CShaderPassElement::draw),
+    // falling back to the renderer's own. Hyprland's scissor/viewport helpers need it.
+    extern Render::CRenderContext* g_drawCtx;
+    Render::CRenderContext&        renderCtx();
 
     class CProgram {
       public:

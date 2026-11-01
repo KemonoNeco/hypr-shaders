@@ -149,10 +149,10 @@ void hs::finalPass(const SFrame& f, CProgram& prog) {
 
     glBindVertexArray(quadVAO());
     f.damage.forEachRect([&f](const auto& RECT) {
-        Render::GL::g_pHyprOpenGL->scissor(&RECT, f.transformDamage);
+        Render::GL::g_pHyprOpenGL->scissor(renderCtx(), &RECT, f.transformDamage);
         glDrawArrays(GL_TRIANGLE_STRIP, 0, 4);
     });
-    Render::GL::g_pHyprOpenGL->scissor(nullptr);
+    Render::GL::g_pHyprOpenGL->scissor(renderCtx(), (const pixman_box32*)nullptr);
 }
 
 static std::unique_ptr<CProgram> g_copyProg;

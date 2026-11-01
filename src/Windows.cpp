@@ -2,8 +2,10 @@
 #include "Log.hpp"
 
 #include <hyprland/src/Compositor.hpp>
-#include <hyprland/src/desktop/view/Window.hpp>
-#include <hyprland/src/desktop/Workspace.hpp>
+#include <hyprland/src/desktop/view/window/Window.hpp>
+#include <hyprland/src/desktop/view/window/WindowPresentation.hpp>
+#include <hyprland/src/render/Context.hpp>
+#include <hyprland/src/render/WindowRenderPresentation.hpp>
 #include <hyprland/src/desktop/rule/windowRule/WindowRuleApplicator.hpp>
 #include <hyprland/src/helpers/math/Math.hpp>
 #include <hyprland/src/output/Monitor.hpp>
@@ -35,12 +37,14 @@ STagState hs::tagState(PHLWINDOW w) {
 }
 
 CBox hs::renderBox(PHLWINDOW w, PHLMONITOR mon) {
-    const auto ws   = w->m_workspace;
-    Vector2D   pos  = w->position(Desktop::View::IGeometric::GEOMETRIC_CURRENT);
-    Vector2D   size = w->size(Desktop::View::IGeometric::GEOMETRIC_CURRENT);
-    if (ws && !w->m_pinned)
-        pos += ws->m_renderOffset->value();
-    pos += w->m_floatingOffset;
+    const auto p = w->presentation().renderPresentation();
+    return renderBox(w, mon, p.workspaceOffset, p.floatingOffset);
+}
+
+CBox hs::renderBox(PHLWINDOW w, PHLMONITOR mon, const Vector2D& workspaceOffset, const Vector2D& floatingOffset) {
+    Vector2D pos  = w->position(Desktop::View::IGeometric::GEOMETRIC_CURRENT);
+    Vector2D size = w->size(Desktop::View::IGeometric::GEOMETRIC_CURRENT);
+    pos += workspaceOffset + floatingOffset;
     pos -= mon->m_position;
     size = {std::max(size.x, 5.0), std::max(size.y, 5.0)};
     return CBox{pos, size}.scale(mon->m_scale).round();
@@ -108,7 +112,7 @@ void CShaderDeco::onPositioningReply(const SDecorationPositioningReply& reply) {
     ;
 }
 
-void CShaderDeco::draw(PHLMONITOR mon, float const& a) {
+void CShaderDeco::draw(Render::CRenderContext& ctx, PHLMONITOR mon, float const& a, const Render::SWindowRenderPresentation& presentation) {
     const auto w = m_window.lock();
     if (!w)
         return;
@@ -120,17 +124,20 @@ void CShaderDeco::draw(PHLMONITOR mon, float const& a) {
     if (m_mode == MODE_BACKDROP) {
         // the backdrop replaces what's behind the window; only fades should make it
         // translucent, not the window's own (in)active opacity
-        const float ACTIVE = w->alphaValue(Desktop::View::WINDOW_ALPHA_ACTIVE);
+        const float ACTIVE = w->presentation().alphaValue(Desktop::View::WINDOW_ALPHA_ACTIVE);
         if (!w->m_ruleApplicator->opaque().valueOrDefault() && ACTIVE > 0.001F)
             alpha = std::min(1.F, a / ACTIVE);
     }
 
-    g_pHyprRenderer->addPassElement(makeUnique<CShaderPassElement>(CShaderPassElement::SData{
-        .window = m_window,
-        .mode   = m_mode,
-        .effect = st.name,
-        .alpha  = alpha,
-    }));
+    Render::IHyprRenderer::addPassElement(ctx,
+                                          makeUnique<CShaderPassElement>(CShaderPassElement::SData{
+                                              .window          = m_window,
+                                              .mode            = m_mode,
+                                              .effect          = st.name,
+                                              .alpha           = alpha,
+                                              .workspaceOffset = presentation.workspaceOffset,
+                                              .floatingOffset  = presentation.floatingOffset,
+                                          }));
 }
 
 eDecorationType CShaderDeco::getDecorationType() {
@@ -168,22 +175,23 @@ std::string CShaderDeco::getDisplayName() {
 
 // ---------------------------------------------------------------- pass element
 
-std::optional<CBox> CShaderPassElement::boundingBox() {
+std::optional<CBox> CShaderPassElement::boundingBox(Render::CRenderContext& ctx) {
     const auto w   = m_data.window.lock();
-    const auto mon = g_pHyprRenderer->m_renderData.pMonitor.lock();
+    const auto mon = ctx.m_data.pMonitor.lock();
     if (!w || !mon)
         return std::nullopt;
     // monitor-local logical coordinates
-    return renderBox(w, mon).scale(1.0 / mon->m_scale);
+    return renderBox(w, mon, m_data.workspaceOffset, m_data.floatingOffset).scale(1.0 / mon->m_scale);
 }
 
-std::vector<UP<IPassElement>> CShaderPassElement::draw() {
+std::vector<UP<IPassElement>> CShaderPassElement::draw(Render::CRenderContext& ctx) {
+    g_drawCtx = &ctx;
     try {
-        auto&      rd  = g_pHyprRenderer->m_renderData;
+        auto&      rd  = ctx.m_data;
         const auto w   = m_data.window.lock();
         const auto mon = rd.pMonitor.lock();
         const auto fb  = rd.currentFB;
-        if (!w || !w->m_isMapped || !mon || !fb)
+        if (!w || !w->mapped() || !mon || !fb)
             return {};
         const auto tex = fb->getTexture();
         if (!tex || !tex->m_texID)
@@ -196,7 +204,7 @@ std::vector<UP<IPassElement>> CShaderPassElement::draw() {
         if (!e || !e->ready())
             return {};
 
-        CBox box = renderBox(w, mon);
+        CBox box = renderBox(w, mon, m_data.workspaceOffset, m_data.floatingOffset);
         rd.renderModif.applyToBox(box);
         box.round();
         if (box.w < 1 || box.h < 1)
@@ -214,8 +222,8 @@ std::vector<UP<IPassElement>> CShaderPassElement::draw() {
         f.srcFBO          = glfb->getFBID();
         f.scale           = mon->m_scale;
         f.alpha           = std::clamp(m_data.alpha, 0.F, 1.F);
-        f.radius          = std::max(0.F, w->rounding() * (float)mon->m_scale - 1.F);
-        f.roundingPower   = w->roundingPower();
+        f.radius          = std::max(0.F, w->presentation().rounding() * (float)mon->m_scale - 1.F);
+        f.roundingPower   = w->presentation().roundingPower();
         f.time            = nowSeconds();
         f.damage          = damage;
         f.transformDamage = rd.transformDamage;
@@ -223,5 +231,6 @@ std::vector<UP<IPassElement>> CShaderPassElement::draw() {
         SGLGuard guard;
         e->render(f);
     } catch (std::exception& ex) { log(ERR, "render failed: {}", ex.what()); }
+    g_drawCtx = nullptr;
     return {};
 }
