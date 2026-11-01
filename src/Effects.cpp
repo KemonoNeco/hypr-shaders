@@ -95,6 +95,8 @@ uniform float uRoundingPower;
 uniform float uAlpha;         // window alpha
 uniform float uTime;          // seconds
 uniform float uTick;          // animation step (floor(time * fps))
+uniform sampler2D hsMask;     // finalPass: coverage mask over the box (layer surfaces)
+uniform float hsUseMask;
 in vec2 vUV;                  // 0..1 across the box, y down
 out vec4 fragColor;
 )GLSL";
@@ -126,6 +128,8 @@ void main() {
     vec4 c = effect(gl_FragCoord.xy);
     if (uRadius > 0.0)
         c = hsRounding(c, uRadius, uRoundingPower, uBox.xy, uBox.zw);
+    if (hsUseMask > 0.5)
+        c *= smoothstep(0.02, 0.10, texture(hsMask, vUV).a);
     fragColor = c * uAlpha;
 }
 )GLSL";
@@ -146,6 +150,13 @@ void hs::finalPass(const SFrame& f, CProgram& prog) {
     prog.set1f("uRoundingPower", f.roundingPower);
     prog.set1f("uAlpha", f.alpha);
     prog.set1f("uTime", (float)f.time);
+    prog.set1f("hsUseMask", f.maskTex ? 1.F : 0.F);
+    if (f.maskTex) {
+        glActiveTexture(GL_TEXTURE3); // units 0-2 are the effects', 0-3 restored by SGLGuard
+        glBindTexture(GL_TEXTURE_2D, f.maskTex);
+        prog.set1i("hsMask", 3);
+        glActiveTexture(GL_TEXTURE0);
+    }
 
     glBindVertexArray(quadVAO());
     f.damage.forEachRect([&f](const auto& RECT) {

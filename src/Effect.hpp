@@ -44,6 +44,8 @@ namespace hs {
         CRegion  damage;       // render-space damage to draw (already intersected with the box)
         bool     transformDamage = true;
         uintptr_t key = 0;     // stable per window + mode, for effects that keep per-window state
+        GLuint   maskTex = 0;  // optional GL_TEXTURE_2D whose alpha (stretched over box) gates the
+                               // output: layer surfaces get the effect only where they paint
         // set by the effect when it needs another frame without new damage (e.g. easing)
         mutable bool wantsRedraw = false;
     };

@@ -75,6 +75,15 @@ hyprctl dispatch 'hl.dsp.window.tag({ tag = "-shaderbg", window = "address:0x...
   ```
   Optional `ascii` keys: `invert` (0/1), `fg` (window-mode glyph role, default
   `on_surface`), `backdropFg` (default `primary`), `bg` (default `surface`).
+- **Layer surfaces** (bars, panels): layers have no tags, so they are picked by namespace
+  (regexes) in the `surfaces` section. A matched layer gets the backdrop effect drawn
+  under it, gated by the alpha of its own buffer: a transparent fullscreen surface only
+  gets it where it paints, and a translucent background lets it show through. This
+  works through a function hook on `IHyprRenderer::renderLayer`.
+
+  ```json
+  { "surfaces": { "enabled": true, "shader": "ascii", "namespaces": ["^bar$", "-panel$"] } }
+  ```
 - **Colours**: `~/.local/state/theme/palette.json` `.colors` (Material roles, hex strings),
   also polled by mtime. Backdrop: glyphs `primary` on `surface`. Window: glyphs
   `on_surface` on `surface`. `tint` (window) and `backdropTint` (backdrop) blend the glyph

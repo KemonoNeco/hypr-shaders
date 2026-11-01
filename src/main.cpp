@@ -4,6 +4,7 @@
 #define WLR_USE_UNSTABLE
 
 #include "Effect.hpp"
+#include "Layers.hpp"
 #include "Log.hpp"
 #include "Windows.hpp"
 
@@ -88,6 +89,8 @@ namespace {
                 if (st.window)
                     reqs.push_back({requiredRenderBox(w, mon, e, MODE_WINDOW)});
             }
+            for (auto& b : layerRequiredBoxes(mon))
+                reqs.push_back({b});
 
             // two rounds: an expansion can reach into another shaded window
             for (int round = 0; round < 2; ++round) {
@@ -119,9 +122,12 @@ namespace {
                     changed = true;
                 }
                 changed = pollEffects() || changed;
-                if (changed)
+                if (changed) {
                     damageAllTagged();
+                    damageAllLayers();
+                }
             }
+            tickLayers(now, nextIn);
 
             for (auto it = g_windows.begin(); it != g_windows.end();) {
                 if (it->second.window.expired())
@@ -207,6 +213,9 @@ APICALL EXPORT PLUGIN_DESCRIPTION_INFO PLUGIN_INIT(HANDLE handle) {
         attach(w);
     }
 
+    if (!initLayers(PHANDLE))
+        HyprlandAPI::addNotification(PHANDLE, "[hypr-shaders] layer surface effects unavailable (renderLayer hook failed)", CHyprColor{1.0, 0.6, 0.2, 1.0}, 6000);
+
     g_timer = wl_event_loop_add_timer(g_pCompositor->m_wlEventLoop, onTimer, nullptr);
     wl_event_source_timer_update(g_timer, 1);
 
@@ -224,6 +233,8 @@ APICALL EXPORT void PLUGIN_EXIT() {
     cancelRedraws();
 
     g_pHyprRenderer->context().m_pass.removeAllOfType("CShaderPassElement");
+    g_pHyprRenderer->context().m_pass.removeAllOfType("CShaderLayerPassElement");
+    exitLayers();
 
     // repaint tagged windows without the effect
     damageAllTagged();
