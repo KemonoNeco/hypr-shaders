@@ -93,6 +93,35 @@ void hs::damageEffect(PHLWINDOW w, const STagState& st) {
     }
 }
 
+namespace {
+    std::vector<PHLWINDOWREF> g_redraw;
+    wl_event_source*          g_redrawIdle = nullptr;
+
+    void                      onRedrawIdle(void*) {
+        g_redrawIdle = nullptr;
+        auto windows = std::move(g_redraw);
+        g_redraw.clear();
+        for (auto& ref : windows) {
+            if (const auto w = ref.lock(); w && w->mapped())
+                damageEffect(w, tagState(w));
+        }
+    }
+}
+
+void hs::requestRedraw(PHLWINDOW w) {
+    if (std::ranges::find(g_redraw, w, [](const PHLWINDOWREF& r) { return r.lock(); }) == g_redraw.end())
+        g_redraw.emplace_back(w);
+    if (!g_redrawIdle)
+        g_redrawIdle = wl_event_loop_add_idle(g_pCompositor->m_wlEventLoop, onRedrawIdle, nullptr);
+}
+
+void hs::cancelRedraws() {
+    if (g_redrawIdle)
+        wl_event_source_remove(g_redrawIdle);
+    g_redrawIdle = nullptr;
+    g_redraw.clear();
+}
+
 // ---------------------------------------------------------------- decoration
 
 CShaderDeco::CShaderDeco(PHLWINDOW w, eMode mode) : IHyprWindowDecoration(w), m_window(w), m_mode(mode) {
@@ -227,9 +256,14 @@ std::vector<UP<IPassElement>> CShaderPassElement::draw(Render::CRenderContext& c
         f.time            = nowSeconds();
         f.damage          = damage;
         f.transformDamage = rd.transformDamage;
+        f.key             = reinterpret_cast<uintptr_t>(w.get()) * 2 + m_data.mode;
 
-        SGLGuard guard;
-        e->render(f);
+        {
+            SGLGuard guard;
+            e->render(f);
+        }
+        if (f.wantsRedraw)
+            requestRedraw(w);
     } catch (std::exception& ex) { log(ERR, "render failed: {}", ex.what()); }
     g_drawCtx = nullptr;
     return {};

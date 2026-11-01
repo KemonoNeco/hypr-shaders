@@ -221,6 +221,7 @@ APICALL EXPORT void PLUGIN_EXIT() {
         g_timer = nullptr;
     }
     g_listeners.clear();
+    cancelRedraws();
 
     g_pHyprRenderer->context().m_pass.removeAllOfType("CShaderPassElement");
 

@@ -39,6 +39,9 @@ namespace hs {
 
     // damage everything the effect touches for w (all monitors it is rendered on)
     void damageEffect(PHLWINDOW w, const STagState& st);
+    // damageEffect() once the current frame is done (safe to call while rendering)
+    void requestRedraw(PHLWINDOW w);
+    void cancelRedraws();
 
     class CShaderDeco : public IHyprWindowDecoration {
       public:

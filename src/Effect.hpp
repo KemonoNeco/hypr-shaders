@@ -43,6 +43,9 @@ namespace hs {
         double   time   = 0;   // seconds since the plugin loaded
         CRegion  damage;       // render-space damage to draw (already intersected with the box)
         bool     transformDamage = true;
+        uintptr_t key = 0;     // stable per window + mode, for effects that keep per-window state
+        // set by the effect when it needs another frame without new damage (e.g. easing)
+        mutable bool wantsRedraw = false;
     };
 
     // Shared header prepended to every final-pass fragment shader. The effect body must
